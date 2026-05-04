@@ -72,3 +72,8 @@ Can be switched with the field `DATA_SOURCE`
 
 1. Create TDAmeritrade Developer Account and App
 2. Put in your `API_KEY` in `config.yaml` and change `DATA_SOURCE`.
+
+**TODO**
+1. Save each file with a datetime stamp in the file name.
+2. Save the data (what gets saved into each file) into a database.
+3. Use Perplexity AI Computer to run the python script and generate a dashboard.
