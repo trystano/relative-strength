@@ -5,7 +5,7 @@ import time
 import bs4 as bs
 import datetime as dt
 import os
-import pandas_datareader.data as web
+# import pandas_datareader.data as web (removed - not needed for yfinance)
 import pickle
 import requests
 import yaml
@@ -255,25 +255,26 @@ def get_yf_data(security, start_date, end_date):
         ticker_data = {}
         ticker = security["ticker"]
         escaped_ticker = escape_ticker(ticker)
-        df = yf.download(escaped_ticker, start=start_date, end=end_date, auto_adjust=True)
-        yahoo_response = df.to_dict()
-        timestamps = list(yahoo_response["Open"].keys())
-        timestamps = list(map(lambda timestamp: int(timestamp.timestamp()), timestamps))
-        opens = list(yahoo_response["Open"].values())
-        closes = list(yahoo_response["Close"].values())
-        lows = list(yahoo_response["Low"].values())
-        highs = list(yahoo_response["High"].values())
-        volumes = list(yahoo_response["Volume"].values())
+        df = yf.download(escaped_ticker, start=start_date, end=end_date, auto_adjust=True, progress=False)
+        
+        # Handle case where download returns empty or single row
+        if df.empty:
+            ticker_data["candles"] = []
+            enrich_ticker_data(ticker_data, security)
+            return ticker_data
+        
         candles = []
-
-        for i in range(0, len(opens)):
+        
+        # Iterate through the DataFrame rows (modern yfinance API)
+        for timestamp, row in df.iterrows():
+            timestamp_int = int(timestamp.timestamp()) if hasattr(timestamp, 'timestamp') else int(timestamp.value // 10**9)
             candle = {}
-            candle["open"] = opens[i]
-            candle["close"] = closes[i]
-            candle["low"] = lows[i]
-            candle["high"] = highs[i]
-            candle["volume"] = volumes[i]
-            candle["datetime"] = timestamps[i]
+            candle["open"] = float(row["Open"]) if pd.notna(row["Open"]) else 0
+            candle["close"] = float(row["Close"]) if pd.notna(row["Close"]) else 0
+            candle["low"] = float(row["Low"]) if pd.notna(row["Low"]) else 0
+            candle["high"] = float(row["High"]) if pd.notna(row["High"]) else 0
+            candle["volume"] = float(row["Volume"]) if pd.notna(row["Volume"]) else 0
+            candle["datetime"] = timestamp_int
             candles.append(candle)
 
         ticker_data["candles"] = candles
