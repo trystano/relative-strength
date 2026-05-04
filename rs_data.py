@@ -255,8 +255,19 @@ def get_yf_data(security, start_date, end_date):
         ticker_data = {}
         ticker = security["ticker"]
         escaped_ticker = escape_ticker(ticker)
-        df = yf.download(escaped_ticker, start=start_date, end=end_date, auto_adjust=True, progress=False)
-        
+        df = yf.download(
+            escaped_ticker,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
+            progress=False,
+            group_by="column",
+        )
+        # yfinance uses MultiIndex (Price field, Ticker); drop ticker level for OHLCV column names.
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df.copy()
+            df.columns = df.columns.droplevel(-1)
+
         # Handle case where download returns empty or single row
         if df.empty:
             ticker_data["candles"] = []
@@ -266,14 +277,20 @@ def get_yf_data(security, start_date, end_date):
         candles = []
         
         # Iterate through the DataFrame rows (modern yfinance API)
+        def _float_col(series_row, col):
+            val = series_row[col]
+            if isinstance(val, pd.Series):
+                val = val.iloc[0] if len(val) else float("nan")
+            return float(val) if pd.notna(val) else 0.0
+
         for timestamp, row in df.iterrows():
             timestamp_int = int(timestamp.timestamp()) if hasattr(timestamp, 'timestamp') else int(timestamp.value // 10**9)
             candle = {}
-            candle["open"] = float(row["Open"]) if pd.notna(row["Open"]) else 0
-            candle["close"] = float(row["Close"]) if pd.notna(row["Close"]) else 0
-            candle["low"] = float(row["Low"]) if pd.notna(row["Low"]) else 0
-            candle["high"] = float(row["High"]) if pd.notna(row["High"]) else 0
-            candle["volume"] = float(row["Volume"]) if pd.notna(row["Volume"]) else 0
+            candle["open"] = _float_col(row, "Open")
+            candle["close"] = _float_col(row, "Close")
+            candle["low"] = _float_col(row, "Low")
+            candle["high"] = _float_col(row, "High")
+            candle["volume"] = _float_col(row, "Volume")
             candle["datetime"] = timestamp_int
             candles.append(candle)
 
